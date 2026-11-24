@@ -1,16 +1,12 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  FileCheck2, 
-  Globe2, 
-  PieChart, 
-  Bookmark, 
-  FileSpreadsheet, 
-  Settings, 
-  Sparkles,
-  ShieldCheck,
-  TrendingUp,
-  Cpu
+import {
+  LayoutDashboard,
+  FileCheck2,
+  Globe2,
+  PieChart,
+  Bookmark,
+  FileSpreadsheet,
+  Settings,
 } from 'lucide-react';
 import { NavigationTab } from '@/types';
 import { cn } from '@/lib/utils';
@@ -20,6 +16,8 @@ interface SidebarProps {
   setActiveTab: (tab: NavigationTab) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  dealsCount?: number;
+  watchlistCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -27,13 +25,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   isMobileOpen,
   setIsMobileOpen,
+  dealsCount = 5,
+  watchlistCount = 12,
 }) => {
-  const navItems: { id: NavigationTab; label: string; icon: React.ElementType; badge?: string }[] = [
+  const navItems: {
+    id: NavigationTab;
+    label: string;
+    icon: React.ElementType;
+    badge?: string;
+  }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'due-diligence', label: 'Due Diligence', icon: FileCheck2, badge: '4 Deals' },
+    { id: 'due-diligence', label: 'Due Diligence', icon: FileCheck2, badge: `${dealsCount} Deals` },
     { id: 'market-intel', label: 'Market Intelligence', icon: Globe2 },
     { id: 'portfolio', label: 'Portfolio', icon: PieChart },
-    { id: 'watchlist', label: 'Watchlist', icon: Bookmark, badge: '6' },
+    { id: 'watchlist', label: 'Watchlist', icon: Bookmark, badge: String(watchlistCount) },
     { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -47,22 +52,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Backdrop */}
       {isMobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar Container */}
       <aside
         className={cn(
           'fixed lg:sticky top-16 z-50 h-[calc(100vh-4rem)] w-64 bg-slate-950 border-r border-slate-800/80 flex flex-col justify-between transition-transform duration-300 ease-in-out select-none',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        {/* Nav Links */}
         <div className="p-4 space-y-1.5 overflow-y-auto">
           <div className="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest font-mono">
             Navigation
@@ -110,7 +112,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Workspace Profile / Status Card */}
         <div className="p-4 border-t border-slate-800/80">
           <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
             <div className="flex items-center justify-between">
@@ -120,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              4 active deals in review
+              {dealsCount} active deals in review
             </p>
           </div>
         </div>

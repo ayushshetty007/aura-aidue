@@ -7,6 +7,8 @@ export type NavigationTab =
   | 'reports'
   | 'settings';
 
+export type CurrencyCode = 'INR' | 'USD';
+
 export interface MarketIndex {
   symbol: string;
   name: string;
@@ -15,6 +17,7 @@ export interface MarketIndex {
   changePercent: number;
   chartData: { time: string; value: number }[];
   category: 'index' | 'commodity' | 'crypto' | 'yield';
+  currency?: CurrencyCode;
 }
 
 export interface AIInsight {
@@ -35,6 +38,7 @@ export interface DueDiligenceProject {
   name: string;
   ticker: string;
   sector: string;
+  currency?: CurrencyCode;
   stage: 'Sourcing' | 'Initial Review' | 'Deep Dive' | 'IC Ready' | 'Archived';
   status: 'High Conviction' | 'Under Review' | 'Flagged Risk' | 'Passed';
   targetIrr: number;
@@ -61,6 +65,7 @@ export interface Holding {
   ticker: string;
   name: string;
   sector: string;
+  currency?: CurrencyCode;
   shares: number;
   avgCost: number;
   currentPrice: number;
@@ -70,6 +75,7 @@ export interface Holding {
   weight: number;
   aiHealthRating: 'A+' | 'A' | 'B' | 'C' | 'D';
   aiSentiment: 'Bullish' | 'Strong Bullish' | 'Neutral' | 'Bearish';
+  recommendation?: 'Buy' | 'Hold' | 'Sell';
 }
 
 export interface WatchlistItem {
@@ -77,6 +83,7 @@ export interface WatchlistItem {
   ticker: string;
   name: string;
   sector: string;
+  currency?: CurrencyCode;
   price: number;
   change24h: number;
   change1w: number;
@@ -104,11 +111,15 @@ export interface ReportItem {
   keyTakeaways: string[];
   summary: string;
   verdict: 'Recommend Investment' | 'Pass - High Risk' | 'Hold for Better Entry' | 'Overvalued';
+  markdownContent?: string;
+  projectId?: string;
 }
 
 export interface StockDetail {
   ticker: string;
   name: string;
+  currency?: CurrencyCode;
+  exchange?: string;
   price: number;
   change: number;
   changePercent: number;
@@ -158,6 +169,8 @@ export interface WhatMovedToday {
 }
 
 export interface ExtendedStockDetail extends StockDetail {
+  benchmarkName?: string;
+  benchmarkSymbol?: string;
   performance: {
     '1D': number;
     '1W': number;
@@ -175,6 +188,8 @@ export interface ExtendedStockDetail extends StockDetail {
 
 export interface GoldAnalysis {
   price: number;
+  currency?: CurrencyCode;
+  unitLabel?: string;
   change1d: number;
   changePercent1d: number;
   performance: {
@@ -206,6 +221,7 @@ export interface OpportunityCardItem {
 export interface StockComparisonData {
   ticker: string;
   name: string;
+  currency?: CurrencyCode;
   price: number;
   change1d: number;
   change1y: number;
@@ -236,6 +252,7 @@ export interface VDRDocument {
   pageCount: number;
   analysisStatus: 'Complete' | 'Flagged Discrepancy' | 'In Review';
   fileSize: string;
+  chunkCount?: number;
 }
 
 export interface DetailedRisk {
@@ -286,4 +303,106 @@ export interface InvestmentAssessmentData {
   overallThesis: string;
 }
 
+export interface CompanyAnalysisData {
+  companyName: string;
+  ticker: string;
+  currency: CurrencyCode;
+  executiveSummary: string;
+  businessModelSummary: string;
+  competitivePositionSummary: string;
+  grossMarginMoat: string;
+  industryContext: string;
+  cagrLabel: string;
+  metrics: {
+    revenue: number;
+    revenueGrowth: number;
+    ebitda: number;
+    netProfit: number;
+    eps: number;
+    netDebt: number;
+    cashAndEquivalents: number;
+    operatingMargin: number;
+  };
+  trajectory: { year: string; revenue: number; ebitda: number }[];
+  segments: { name: string; sharePercent: number; revenueLabel: string; description: string }[];
+}
 
+export interface ProjectDueDiligenceAnalysis {
+  projectId: string;
+  analyzedAt: string;
+  documentNames: string[];
+  isDemoFallback: boolean;
+  fallbackReason?: string;
+  companyAnalysis: CompanyAnalysisData;
+  risks: DetailedRisk[];
+  opportunities: DetailedOpportunity[];
+  crossDocComparison: CrossDocComparisonMetric[];
+  investmentAssessment: InvestmentAssessmentData;
+}
+
+export interface BuySellAdvisory {
+  ticker: string;
+  companyName: string;
+  currency: CurrencyCode;
+  action: 'Buy' | 'Hold' | 'Sell';
+  signalLabel: 'Strong Buy' | 'Accumulate' | 'Hold' | 'Trim' | 'Sell';
+  confidenceScore: number;
+  currentPrice: number;
+  targetPriceLow: number;
+  targetPriceHigh: number;
+  upsidePercent: number;
+  rationaleSummary: string;
+  bullCase: string[];
+  bearCase: string[];
+  riskFlags: string[];
+  fundamentalsUsed: {
+    latestFYLabel?: string;
+    latestFYRevenue?: string;
+    latestFYProfitOrLoss?: string;
+    isProfit?: boolean;
+    peRatio?: number;
+    pbRatio?: number;
+    vdrGrounded: boolean;
+  };
+  isDemoFallback: boolean;
+  generatedAt: string;
+}
+
+export interface CompanyFYResult {
+  id: string;
+  symbol: string;
+  name: string;
+  exchange: string;
+  sector: string;
+  currency: CurrencyCode;
+  currentPrice: number | null;
+  changePercent: number | null;
+  marketCap: string;
+  latestFYLabel: string;
+  latestFYRevenue: string;
+  latestFYProfitOrLoss: string;
+  isProfit: boolean | null;
+  yoyGrowth: string;
+  netMargin: string;
+  summary: string;
+  profitExplanation: string;
+  keyFinancials: {
+    year: string;
+    revenue: string;
+    netProfit: string;
+    patGrowth: string;
+  }[];
+  profitDrivers: string[];
+  advisoryVerdict: 'Buy' | 'Hold' | 'Sell';
+  advisoryConfidence: number;
+  isLiveMarketData: boolean;
+}
+
+export interface UserSettings {
+  model: string;
+  temperature: number;
+  riskTolerance: 'Conservative' | 'Moderate' | 'Aggressive';
+  vdrSync: boolean;
+  liveMarketSync: boolean;
+  updatedAt: string;
+}

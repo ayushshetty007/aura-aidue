@@ -7,8 +7,10 @@ import { loadVectorRecords, saveVectorRecords } from '../storage/document-storag
  */
 export function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
   if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0) return 0;
-  
-  const minLen = Math.min(vecA.length, vecB.length);
+  // Dimension mismatch (e.g., legacy 64-dim fallback vs 3072-dim Gemini embedding)
+  if (vecA.length !== vecB.length) return -1;
+
+  const minLen = vecA.length;
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;
@@ -21,6 +23,21 @@ export function calculateCosineSimilarity(vecA: number[], vecB: number[]): numbe
 
   if (normA === 0 || normB === 0) return 0;
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function keywordMatchScore(queryText: string, chunkText: string): number {
+  const words = queryText
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+  if (words.length === 0) return 0.1;
+  const hay = chunkText.toLowerCase();
+  let hits = 0;
+  for (const w of words) {
+    if (hay.includes(w)) hits++;
+  }
+  return 0.25 + (hits / words.length) * 0.65;
 }
 
 /**
@@ -87,7 +104,12 @@ export class InMemoryVectorStore {
   /**
    * Search vector store strictly scoped to the requested projectId.
    */
-  public search(projectId: string, queryEmbedding: number[], topK: number = 4): SearchResult[] {
+  public search(
+    projectId: string,
+    queryEmbedding: number[],
+    topK: number = 4,
+    queryText: string = ''
+  ): SearchResult[] {
     this.ensureLoaded();
 
     // Purge corrupted records prior to search execution
@@ -103,7 +125,9 @@ export class InMemoryVectorStore {
     const results: SearchResult[] = projectRecords
       .filter((rec) => !isBinaryOrCorruptedText(rec.chunk.text))
       .map((rec) => {
-        const similarity = calculateCosineSimilarity(queryEmbedding, rec.embedding);
+        const rawSim = calculateCosineSimilarity(queryEmbedding, rec.embedding);
+        const similarity =
+          rawSim < 0 ? keywordMatchScore(queryText, rec.chunk.text) : rawSim;
         return {
           chunk: rec.chunk,
           similarity,
@@ -167,6 +191,16 @@ export class InMemoryVectorStore {
   public clear(): void {
     this.records = [];
     this.persist();
+  }
+
+  /**
+   * Retrieve all chunks belonging to a project (grouped in document/page order)
+   */
+  public getProjectChunks(projectId: string): TextChunk[] {
+    this.ensureLoaded();
+    return this.records
+      .filter((rec) => rec.projectId === projectId && !isBinaryOrCorruptedText(rec.chunk.text))
+      .map((rec) => rec.chunk);
   }
 
   /**

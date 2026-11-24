@@ -1,22 +1,23 @@
-import React, { useState } from 'react';
-import { 
-  Sparkles, 
-  Search, 
-  Bell, 
-  ChevronDown, 
-  Command, 
-  ShieldCheck, 
-  TrendingUp, 
-  TrendingDown, 
-  Menu, 
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  Sparkles,
+  Search,
+  Bell,
+  Command,
+  TrendingUp,
+  TrendingDown,
+  Menu,
   X,
   Layers,
   Sun,
-  Moon
+  Moon,
 } from 'lucide-react';
 import { MOCK_MARKET_INDICES, MOCK_USER_PROFILE } from '@/lib/mockData';
 import { formatPercent } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
+import { MarketIndex } from '@/types';
 
 interface NavbarProps {
   onSearchOpen?: () => void;
@@ -33,33 +34,76 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { theme, toggleTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [indices, setIndices] = useState<MarketIndex[]>(MOCK_MARKET_INDICES);
+  const [isLiveMarket, setIsLiveMarket] = useState(false);
+  const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/market/overview')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.indices) && data.indices.length > 0) {
+          setIndices(data.indices);
+          setIsLiveMarket(Boolean(data.isLive));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data.geminiConfigured === 'boolean') {
+          setGeminiConfigured(data.geminiConfigured);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
       {/* Ticker Ribbon Bar */}
       <div className="hidden lg:flex items-center gap-6 px-6 py-1.5 bg-slate-900/60 border-b border-slate-800/40 text-xs font-mono text-slate-400 overflow-x-auto no-scrollbar">
         <span className="flex items-center gap-1.5 text-slate-400 font-semibold uppercase tracking-wider shrink-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Live Markets:
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isLiveMarket ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+            }`}
+          ></span>
+          {isLiveMarket ? 'Live Markets:' : 'Market Feed:'}
         </span>
-        {MOCK_MARKET_INDICES.map((idx) => {
+        {indices.map((idx) => {
           const isUp = idx.change >= 0;
           return (
-            <div key={idx.symbol} className="flex items-center gap-2 shrink-0 border-r border-slate-800/80 pr-4">
+            <div
+              key={idx.symbol}
+              className="flex items-center gap-2 shrink-0 border-r border-slate-800/80 pr-4"
+            >
               <span className="text-slate-300 font-semibold">{idx.symbol}</span>
               <span className="text-slate-200">{idx.value.toLocaleString()}</span>
-              <span className={`flex items-center gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              <span
+                className={`flex items-center gap-0.5 ${
+                  isUp ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
+                {isUp ? (
+                  <TrendingUp className="w-3 h-3" />
+                ) : (
+                  <TrendingDown className="w-3 h-3" />
+                )}
                 {formatPercent(idx.changePercent)}
               </span>
             </div>
           );
         })}
+        {geminiConfigured === false && (
+          <span className="ml-auto text-[10px] text-amber-400 shrink-0">
+            Demo AI Fallback (.env.local placeholder key)
+          </span>
+        )}
       </div>
 
       {/* Main Header Row */}
       <div className="flex items-center justify-between px-4 lg:px-6 h-16">
-        {/* Left: Brand & Mobile Toggle */}
         <div className="flex items-center gap-4">
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
@@ -89,7 +133,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Search className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 transition-colors" />
-              <span>Search companies (Tata, Suzuki...) for profit & financials...</span>
+              <span className="truncate">
+                Search any company for FY Profit/Loss & live quote...
+              </span>
             </div>
             <kbd className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
               <Command className="w-3 h-3" /> K
@@ -99,7 +145,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Actions & Profile */}
         <div className="flex items-center gap-3">
-          {/* Ask AI Copilot Button */}
           <button
             onClick={onAiCopilotOpen}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-all shadow-sm cursor-pointer"
@@ -108,7 +153,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">AI Assistant</span>
           </button>
 
-          {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
             aria-label="Toggle theme"
@@ -122,11 +166,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Notifications Toggle */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+              className="relative p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors cursor-pointer"
             >
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -135,24 +178,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 glass-panel bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-4 z-50 text-xs">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                  <span className="font-semibold text-slate-200">AI Alerts & Updates</span>
-                  <span className="text-[10px] text-emerald-400 font-mono">3 New</span>
+                  <span className="font-semibold text-slate-200">System & Market Status</span>
+                  <span className="text-[10px] text-emerald-400 font-mono">
+                    {isLiveMarket ? 'Live Feed' : 'Cached'}
+                  </span>
                 </div>
                 <div className="space-y-3">
                   <div className="p-2 rounded bg-slate-800/50 border border-slate-700/50">
-                    <p className="font-semibold text-slate-200">10-Q Alert: NVDA</p>
-                    <p className="text-slate-400 text-[11px] mt-0.5">Custom ASIC expenditure +34% YoY detected.</p>
+                    <p className="font-semibold text-slate-200">
+                      Market Provider: yahoo-finance2
+                    </p>
+                    <p className="text-slate-400 text-[11px] mt-0.5">
+                      {isLiveMarket
+                        ? 'Streaming live NSE/BSE & US market quotes and FY statements.'
+                        : 'Using cached market snapshot.'}
+                    </p>
                   </div>
                   <div className="p-2 rounded bg-slate-800/50 border border-slate-700/50">
-                    <p className="font-semibold text-slate-200">Due Diligence Completed</p>
-                    <p className="text-slate-400 text-[11px] mt-0.5">Project Apex (CyberTech) IC Memo generated.</p>
+                    <p className="font-semibold text-slate-200">
+                      Gemini AI Engine
+                    </p>
+                    <p className="text-slate-400 text-[11px] mt-0.5">
+                      {geminiConfigured
+                        ? 'GOOGLE_GENERATIVE_AI_API_KEY active for RAG & single-call VDR extraction.'
+                        : 'Placeholder key detected in .env.local — demo fallback active.'}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* User Profile */}
           <div className="flex items-center gap-3 pl-2 border-l border-slate-800">
             <img
               src={MOCK_USER_PROFILE.avatar}

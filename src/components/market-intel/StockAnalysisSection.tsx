@@ -1,75 +1,239 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MOCK_EXTENDED_STOCKS } from '@/lib/mockData';
-import { formatCurrency, formatPercent } from '@/lib/utils';
+import { formatCurrency, formatPercent, inferCurrencyFromTicker } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
-import { 
-  Building2, 
-  TrendingUp, 
-  TrendingDown, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Eye, 
-  Sparkles, 
-  CheckCircle2, 
+import {
+  Building2,
+  TrendingUp,
+  TrendingDown,
+  ShieldCheck,
+  AlertTriangle,
+  Eye,
+  Sparkles,
+  CheckCircle2,
   BarChart2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Search,
+  Loader2,
+  Target,
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  Tooltip 
-} from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
+import { BuySellAdvisory, CompanyFYResult, ExtendedStockDetail } from '@/types';
 
-export const StockAnalysisSection: React.FC = () => {
-  const [selectedTicker, setSelectedTicker] = useState<'TCS' | 'RELIANCE' | 'NVDA' | 'AAPL' | 'MSFT'>('TCS');
+interface StockAnalysisSectionProps {
+  initialTicker?: string;
+}
+
+export const StockAnalysisSection: React.FC<StockAnalysisSectionProps> = ({ initialTicker }) => {
+  const [selectedTicker, setSelectedTicker] = useState<string>(initialTicker || 'TCS');
+  const [prevInitialTicker, setPrevInitialTicker] = useState<string | undefined>(initialTicker);
+  if (initialTicker !== prevInitialTicker) {
+    setPrevInitialTicker(initialTicker);
+    if (initialTicker) {
+      setSelectedTicker(initialTicker);
+    }
+  }
+  const [customTickerInput, setCustomTickerInput] = useState<string>('');
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '6M' | '1Y' | '5Y'>('1M');
+  const [stock, setStock] = useState<ExtendedStockDetail & { isLive?: boolean }>(
+    MOCK_EXTENDED_STOCKS['TCS']
+  );
+  const [advisory, setAdvisory] = useState<BuySellAdvisory | null>(null);
+  const [fySummary, setFySummary] = useState<CompanyFYResult | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const stock = MOCK_EXTENDED_STOCKS[selectedTicker] || MOCK_EXTENDED_STOCKS['TCS'];
-  const chartData = stock.timeframeChartData[timeframe] || stock.timeframeChartData['1M'];
-  const currentPerf = stock.performance[timeframe] || 0;
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) setIsLoading(true);
+    });
+    fetch(`/api/stocks/${encodeURIComponent(selectedTicker)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.success) return;
+        if (data.stock) setStock(data.stock);
+        if (data.advisory) setAdvisory(data.advisory);
+        if (data.fySummary) setFySummary(data.fySummary);
+        else setFySummary(null);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTicker]);
+
+  const handleCustomTickerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTickerInput.trim()) return;
+    setSelectedTicker(customTickerInput.trim().toUpperCase());
+  };
+
+  const currency = stock.currency || inferCurrencyFromTicker(stock.ticker);
+  const benchmarkName = stock.benchmarkName || (currency === 'INR' ? 'NIFTY 50' : 'S&P 500');
+  const chartData = stock.timeframeChartData?.[timeframe] || stock.timeframeChartData?.['1M'] || [];
+  const currentPerf = stock.performance?.[timeframe] || 0;
   const isPositivePerf = currentPerf >= 0;
 
   return (
     <div className="space-y-6">
-      {/* Ticker Switcher Header */}
-      <div className="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Ticker Switcher & Search Header */}
+      <div className="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
             <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-bold text-slate-100">{stock.name}</h2>
               <span className="px-2 py-0.5 rounded bg-slate-800 text-xs font-semibold text-emerald-500 border border-slate-700">
                 {stock.ticker}
               </span>
-              <Badge variant="blue">Verified Feed</Badge>
+              <Badge variant={stock.isLive ? 'green' : 'blue'}>
+                {stock.isLive ? 'Live Yahoo Finance' : 'Cached Feed'}
+              </Badge>
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />}
             </div>
             <p className="text-xs text-slate-400 max-w-xl line-clamp-1">{stock.description}</p>
           </div>
         </div>
 
-        {/* Ticker Switch Buttons */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-slate-400 hidden sm:inline mr-1">Select:</span>
-          {(['TCS', 'RELIANCE', 'NVDA', 'AAPL', 'MSFT'] as const).map((t) => (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <form onSubmit={handleCustomTickerSubmit} className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              value={customTickerInput}
+              onChange={(e) => setCustomTickerInput(e.target.value)}
+              placeholder="Any ticker (e.g. INFY.NS, TSLA)"
+              className="pl-8 pr-16 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500"
+            />
             <button
-              key={t}
-              onClick={() => setSelectedTicker(t)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
-                selectedTicker === t
-                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
-                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
-              }`}
+              type="submit"
+              className="absolute right-1.5 top-1 px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold cursor-pointer"
             >
-              {t}
+              Go
             </button>
-          ))}
+          </form>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(['TCS', 'RELIANCE', 'TATAMOTORS', 'MARUTI', 'NVDA', 'AAPL'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setSelectedTicker(t)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  selectedTicker.replace(/\.(NS|BO)$/i, '') === t
+                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* AI Buy / Hold / Sell Advisory Banner */}
+      {advisory && (
+        <div
+          className={`glass-card rounded-2xl p-6 border space-y-4 ${
+            advisory.action === 'Buy'
+              ? 'border-emerald-500/40 bg-emerald-500/5'
+              : advisory.action === 'Sell'
+              ? 'border-rose-500/40 bg-rose-500/5'
+              : 'border-amber-500/40 bg-amber-500/5'
+          }`}
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div
+                className={`px-4 py-2 rounded-xl font-mono font-black text-base border ${
+                  advisory.action === 'Buy'
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                    : advisory.action === 'Sell'
+                    ? 'bg-rose-500 text-white border-rose-400'
+                    : 'bg-amber-400 text-slate-950 border-amber-300'
+                }`}
+              >
+                {advisory.action.toUpperCase()} — {advisory.signalLabel}
+              </div>
+              <div>
+                <div className="text-xs font-mono text-slate-200 font-bold flex items-center gap-2">
+                  <span>AI Investment Advisory Confidence: {advisory.confidenceScore}%</span>
+                  {advisory.fundamentalsUsed.vdrGrounded && (
+                    <Badge variant="green">VDR + Market Grounded</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">{advisory.rationaleSummary}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 bg-slate-950/70 px-4 py-2.5 rounded-xl border border-slate-800 font-mono text-xs shrink-0">
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase flex items-center gap-1">
+                  <Target className="w-3 h-3 text-emerald-400" /> Target Range
+                </div>
+                <div className="font-bold text-slate-100">
+                  {formatCurrency(advisory.targetPriceLow, 2, currency)} –{' '}
+                  {formatCurrency(advisory.targetPriceHigh, 2, currency)}
+                </div>
+              </div>
+              <div className="h-6 w-px bg-slate-800" />
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase">Implied Upside</div>
+                <div
+                  className={`font-bold ${
+                    advisory.upsidePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}
+                >
+                  {advisory.upsidePercent >= 0 ? '+' : ''}
+                  {advisory.upsidePercent}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+              <div className="text-[10px] font-mono uppercase text-emerald-400 font-bold">
+                Bull Case Catalysts
+              </div>
+              {advisory.bullCase.map((b, i) => (
+                <div key={i} className="text-slate-300">
+                  • {b}
+                </div>
+              ))}
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+              <div className="text-[10px] font-mono uppercase text-rose-400 font-bold">
+                Bear Case & Risks
+              </div>
+              {advisory.bearCase.map((b, i) => (
+                <div key={i} className="text-slate-300">
+                  • {b}
+                </div>
+              ))}
+            </div>
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1">
+              <div className="text-[10px] font-mono uppercase text-blue-400 font-bold">
+                Present FY Snapshot ({fySummary?.latestFYLabel || 'Latest'})
+              </div>
+              <div className="text-slate-200 font-semibold">
+                {fySummary?.latestFYProfitOrLoss || 'Profitability metrics tracked via live feed'}
+              </div>
+              {fySummary && (
+                <div className="text-slate-400">
+                  Revenue: {fySummary.latestFYRevenue} | Net Margin: {fySummary.netMargin}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Price & Performance Multi-Timeframe Bar */}
       <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-6">
@@ -77,7 +241,7 @@ export const StockAnalysisSection: React.FC = () => {
           <div>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-extrabold text-slate-100 font-mono">
-                {formatCurrency(stock.price)}
+                {formatCurrency(stock.price, 2, currency)}
               </span>
               <span
                 className={`text-sm font-bold font-mono px-2.5 py-1 rounded-lg flex items-center gap-1 ${
@@ -86,14 +250,19 @@ export const StockAnalysisSection: React.FC = () => {
                     : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                 }`}
               >
-                {stock.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                {formatCurrency(stock.change)} ({formatPercent(stock.changePercent)})
+                {stock.change >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+                {formatCurrency(stock.change, 2, currency)} ({formatPercent(stock.changePercent)})
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono mt-1">Real-time simulation feed | INR</p>
+            <p className="text-xs text-slate-400 font-mono mt-1">
+              {stock.exchange || (currency === 'INR' ? 'NSE' : 'NASDAQ/NYSE')} | Currency: {currency}
+            </p>
           </div>
 
-          {/* Timeframe Selector Pills */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
             {(['1D', '1W', '1M', '6M', '1Y', '5Y'] as const).map((tf) => {
               const val = stock.performance[tf];
@@ -102,7 +271,7 @@ export const StockAnalysisSection: React.FC = () => {
                 <button
                   key={tf}
                   onClick={() => setTimeframe(tf)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                     timeframe === tf
                       ? 'bg-slate-800 text-emerald-400 border border-emerald-500/40 shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
@@ -128,11 +297,11 @@ export const StockAnalysisSection: React.FC = () => {
             <div className="flex items-center gap-4 text-[11px]">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                ${stock.ticker} ({formatPercent(currentPerf)})
+                {stock.ticker} ({formatPercent(currentPerf)})
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                S&P 500 Benchmark (+21.4% 1Y)
+                {benchmarkName} ({formatPercent(stock.benchmarkComparison1Y)} 1Y)
               </span>
             </div>
           </div>
@@ -142,22 +311,53 @@ export const StockAnalysisSection: React.FC = () => {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={isPositivePerf ? '#10b981' : '#f43f5e'} stopOpacity={0.35}/>
-                    <stop offset="95%" stopColor={isPositivePerf ? '#10b981' : '#f43f5e'} stopOpacity={0}/>
+                    <stop
+                      offset="5%"
+                      stopColor={isPositivePerf ? '#10b981' : '#f43f5e'}
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={isPositivePerf ? '#10b981' : '#f43f5e'}
+                      stopOpacity={0}
+                    />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="time" stroke="#64748b" fontSize={11} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  domain={['auto', 'auto']}
+                />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderColor: '#334155',
+                    borderRadius: '8px',
+                  }}
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={(val: any, name: any) => [
-                    name === 'price' ? formatCurrency(Number(val)) : `₹${val}`,
-                    name === 'price' ? stock.ticker : 'S&P 500 Benchmark'
+                    formatCurrency(Number(val), 2, currency),
+                    name === 'price' ? stock.ticker : `${benchmarkName} (Normalized)`,
                   ]}
                 />
-                <Area type="monotone" dataKey="price" stroke={isPositivePerf ? '#10b981' : '#f43f5e'} strokeWidth={2.5} fillOpacity={1} fill="url(#colorStock)" />
-                <Area type="monotone" dataKey="benchmarkPrice" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="3 3" fillOpacity={0} />
+                <Area
+                  type="monotone"
+                  dataKey="price"
+                  stroke={isPositivePerf ? '#10b981' : '#f43f5e'}
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#colorStock)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="benchmarkPrice"
+                  stroke="#3b82f6"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 3"
+                  fillOpacity={0}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -183,18 +383,21 @@ export const StockAnalysisSection: React.FC = () => {
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
             <div className="text-slate-400">52W High</div>
-            <div className="font-bold text-slate-100 mt-1">{formatCurrency(stock.week52High)}</div>
+            <div className="font-bold text-slate-100 mt-1">
+              {formatCurrency(stock.week52High, 2, currency)}
+            </div>
           </div>
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
             <div className="text-slate-400">52W Low</div>
-            <div className="font-bold text-slate-100 mt-1">{formatCurrency(stock.week52Low)}</div>
+            <div className="font-bold text-slate-100 mt-1">
+              {formatCurrency(stock.week52Low, 2, currency)}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Strengths & Risks + AI Assessment & Factors to Monitor Grid */}
+      {/* Strengths & Risks + AI Assessment */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Strengths & Risks Card */}
         <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <h3 className="text-base font-semibold text-slate-100 font-mono flex items-center gap-2">
@@ -205,15 +408,17 @@ export const StockAnalysisSection: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {/* Strengths */}
             <div className="space-y-2">
               <div className="text-xs font-bold text-emerald-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Key Competitive Strengths
               </div>
               <ul className="space-y-2 text-xs text-slate-300">
-                {stock.strengths.map((st: string, i: number) => (
-                  <li key={i} className="flex items-start gap-2 bg-emerald-500/5 p-2.5 rounded-xl border border-emerald-500/10">
+                {stock.strengths.map((st, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 bg-emerald-500/5 p-2.5 rounded-xl border border-emerald-500/10"
+                  >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                     <span>{st}</span>
                   </li>
@@ -221,15 +426,17 @@ export const StockAnalysisSection: React.FC = () => {
               </ul>
             </div>
 
-            {/* Risks */}
             <div className="space-y-2 pt-2 border-t border-slate-800/80">
               <div className="text-xs font-bold text-rose-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Risks to Monitor
               </div>
               <ul className="space-y-2 text-xs text-slate-300">
-                {stock.risks.map((rk: string, i: number) => (
-                  <li key={i} className="flex items-start gap-2 bg-rose-500/5 p-2.5 rounded-xl border border-rose-500/10">
+                {stock.risks.map((rk, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 bg-rose-500/5 p-2.5 rounded-xl border border-rose-500/10"
+                  >
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
                     <span>{rk}</span>
                   </li>
@@ -239,53 +446,64 @@ export const StockAnalysisSection: React.FC = () => {
           </div>
         </div>
 
-        {/* AI Assessment & Factors to Monitor Card */}
         <div className="glass-card rounded-2xl p-6 border border-slate-800 space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <h3 className="text-base font-semibold text-slate-100 font-mono flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-400" />
               AI Assessment & Factors to Monitor
             </h3>
-            <Badge variant="green">AI Signal</Badge>
+            <Badge variant="green">AI Factor Score</Badge>
           </div>
 
-          {/* AI Score Radar Bar */}
           <div className="grid grid-cols-4 gap-2 font-mono text-center">
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
               <div className="text-[10px] text-slate-400">Growth</div>
-              <div className="text-sm font-bold text-emerald-400">{stock.aiAnalysis.growthScore}/100</div>
+              <div className="text-sm font-bold text-emerald-400">
+                {stock.aiAnalysis.growthScore}/100
+              </div>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
               <div className="text-[10px] text-slate-400">Value</div>
-              <div className="text-sm font-bold text-amber-400">{stock.aiAnalysis.valueScore}/100</div>
+              <div className="text-sm font-bold text-amber-400">
+                {stock.aiAnalysis.valueScore}/100
+              </div>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
               <div className="text-[10px] text-slate-400">Momentum</div>
-              <div className="text-sm font-bold text-emerald-400">{stock.aiAnalysis.momentumScore}/100</div>
+              <div className="text-sm font-bold text-emerald-400">
+                {stock.aiAnalysis.momentumScore}/100
+              </div>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
               <div className="text-[10px] text-slate-400">Quality</div>
-              <div className="text-sm font-bold text-blue-400">{stock.aiAnalysis.qualityScore}/100</div>
+              <div className="text-sm font-bold text-blue-400">
+                {stock.aiAnalysis.qualityScore}/100
+              </div>
             </div>
           </div>
 
-          {/* Executive AI Summary Box */}
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-200 leading-relaxed font-sans">
-            <strong className="block font-mono text-emerald-400 font-bold mb-1">AI Analytical Assessment:</strong>
+            <strong className="block font-mono text-emerald-400 font-bold mb-1">
+              AI Analytical Assessment:
+            </strong>
             {stock.aiAnalysis.summary}
           </div>
 
-          {/* Factors to Monitor */}
           <div className="space-y-2 pt-2 border-t border-slate-800">
             <div className="text-xs font-bold text-blue-400 font-mono uppercase tracking-wider flex items-center gap-1.5">
               <Eye className="w-3.5 h-3.5" />
               Forward Catalyst & Operational Factors
             </div>
             <ul className="space-y-2 text-xs text-slate-300 font-mono">
-              {stock.factorsToMonitor.map((fm: string, i: number) => (
-                <li key={i} className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+              {stock.factorsToMonitor.map((fm, i) => (
+                <li
+                  key={i}
+                  className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between"
+                >
                   <span>{fm}</span>
-                  <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Track</span>
+                  <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    Track
+                  </span>
                 </li>
               ))}
             </ul>
