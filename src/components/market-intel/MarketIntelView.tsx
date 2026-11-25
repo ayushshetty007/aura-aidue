@@ -38,10 +38,12 @@ export const MarketIntelView: React.FC<MarketIntelViewProps> = ({ initialTicker 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'stock-analysis' | 'gold' | 'opportunities' | 'comparison' | 'simulator'
   >(initialTicker ? 'stock-analysis' : 'overview');
+  const [inspectedTicker, setInspectedTicker] = useState<string | undefined>(initialTicker);
   const [prevInitialTicker, setPrevInitialTicker] = useState<string | undefined>(initialTicker);
   if (initialTicker !== prevInitialTicker) {
     setPrevInitialTicker(initialTicker);
     if (initialTicker) {
+      setInspectedTicker(initialTicker);
       setActiveTab('stock-analysis');
     }
   }
@@ -113,7 +115,7 @@ export const MarketIntelView: React.FC<MarketIntelViewProps> = ({ initialTicker 
           { id: 'gold', label: 'Gold Analysis', icon: Coins },
           { id: 'opportunities', label: 'Opportunities Radar', icon: Radar },
           { id: 'comparison', label: 'Stock Comparison', icon: Split },
-          { id: 'simulator', label: 'Profile & Simulator', icon: UserCheck },
+          { id: 'simulator', label: 'Investment Terminal', icon: UserCheck },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -337,11 +339,18 @@ export const MarketIntelView: React.FC<MarketIntelViewProps> = ({ initialTicker 
         </div>
       )}
 
-      {activeTab === 'stock-analysis' && <StockAnalysisSection initialTicker={initialTicker} />}
+      {activeTab === 'stock-analysis' && <StockAnalysisSection initialTicker={inspectedTicker} />}
       {activeTab === 'gold' && <GoldAnalysisSection />}
       {activeTab === 'opportunities' && <OpportunityRadarSection />}
       {activeTab === 'comparison' && <StockComparisonSection />}
-      {activeTab === 'simulator' && <InvestorProfileSimulator />}
+      {activeTab === 'simulator' && (
+        <InvestorProfileSimulator
+          onAnalyzeStock={(ticker) => {
+            setInspectedTicker(ticker);
+            setActiveTab('stock-analysis');
+          }}
+        />
+      )}
     </div>
   );
 };

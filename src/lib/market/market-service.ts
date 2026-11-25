@@ -117,7 +117,12 @@ function currencyFromQuote(symbol: string, rawCurrency?: string): CurrencyCode {
   return inferCurrencyFromTicker(symbol);
 }
 
-function formatCompactMarketCap(cap: number | undefined, currency: CurrencyCode): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getYahooClient(): any {
+  return getYF();
+}
+
+export function formatCompactMarketCap(cap: number | undefined, currency: CurrencyCode): string {
   if (!cap || !Number.isFinite(cap)) return 'N/A';
   if (currency === 'INR') {
     const crores = cap / 1e7;
@@ -192,7 +197,7 @@ export async function fetchLiveQuote(rawTicker: string): Promise<LiveQuoteResult
   });
 }
 
-async function fetchChartSeries(
+export async function fetchChartSeries(
   symbol: string,
   period1: Date,
   interval: '15m' | '1h' | '1d' | '1wk' | '1mo'

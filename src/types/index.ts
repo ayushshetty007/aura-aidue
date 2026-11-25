@@ -406,3 +406,97 @@ export interface UserSettings {
   liveMarketSync: boolean;
   updatedAt: string;
 }
+
+export type MarketUniverse = 'IN' | 'US';
+export type MarketCapTier = 'Large Cap' | 'Mid Cap' | 'Small Cap';
+
+export interface CompanyFundamentalSnapshot {
+  ticker: string;
+  yahooSymbol: string;
+  name: string;
+  sector: string;
+  universe: MarketUniverse;
+  currency: CurrencyCode;
+  price: number;
+  changePercent1d: number;
+  marketCapValue: number;
+  marketCapFormatted: string;
+  capTier: MarketCapTier;
+  peRatio: number;
+  pbRatio: number;
+  roePercent: number;
+  netMarginPercent: number;
+  revenueGrowthPercent: number;
+  debtToEquity: number;
+  dividendYieldPercent: number;
+  week52High: number;
+  week52Low: number;
+  cagr1y: number;
+  cagr3y: number;
+  cagr5y: number;
+  fundamentalScore: number;
+  expectedAnnualReturnPercent: number;
+  riskLevel: 'Low' | 'Moderate' | 'High';
+  verdict: 'Strong Buy' | 'Accumulate' | 'Hold';
+  rationale: string;
+  isLive: boolean;
+}
+
+export interface TerminalAllocationPick {
+  company: CompanyFundamentalSnapshot;
+  allocationPercent: number;
+  allocatedLumpSum: number;
+  allocatedMonthlySip: number;
+  totalInvestedForPick: number;
+  projectedValueBase: number;
+  projectedGainBase: number;
+}
+
+export interface TerminalProjectionPoint {
+  year: string;
+  invested: number;
+  conservative: number;
+  expected: number;
+  optimistic: number;
+}
+
+export interface TerminalRecommendRequest {
+  universe: MarketUniverse;
+  lumpSum: number;
+  monthlySip: number;
+  durationYears: number;
+  riskTolerance: 'Conservative' | 'Moderate' | 'Aggressive';
+}
+
+export interface TerminalRecommendResponse {
+  universe: MarketUniverse;
+  currency: CurrencyCode;
+  lumpSum: number;
+  monthlySip: number;
+  durationYears: number;
+  riskTolerance: 'Conservative' | 'Moderate' | 'Aggressive';
+  recommendedSplit: {
+    largeCapPct: number;
+    midCapPct: number;
+    smallCapPct: number;
+  };
+  projectedSummary: {
+    totalInvested: number;
+    conservativeCorpus: number;
+    expectedCorpus: number;
+    optimisticCorpus: number;
+    expectedGain: number;
+    expectedGainPercent: number;
+    blendedCagrPercent: number;
+  };
+  yearlyProjectionChart: TerminalProjectionPoint[];
+  buckets: {
+    largeCap: CompanyFundamentalSnapshot[];
+    midCap: CompanyFundamentalSnapshot[];
+    smallCap: CompanyFundamentalSnapshot[];
+  };
+  topPortfolioPicks: TerminalAllocationPick[];
+  aiCommentary: string;
+  isLiveMarketData: boolean;
+  generatedAt: string;
+}
